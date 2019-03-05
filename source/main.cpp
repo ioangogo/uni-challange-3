@@ -4,5 +4,6 @@ MicroBit uBit;
 
 void main()
 {
+    uBit.init();
     release_fiber();
 }

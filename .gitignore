@@ -1,1 +1,3 @@
 .yotta.json
+yotta_modules/
+build/
