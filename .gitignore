@@ -1,3 +1,9 @@
 .yotta.json
 yotta_modules/
 build/
+lib/
+lib64
+bin/
+__pycache__
+*.pyc
+include/
