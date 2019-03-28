@@ -4,8 +4,9 @@ from PyQt5.QtCore import *
 from mBitController import Ui_MainWindow
 import sys, time
 from bluezero import adapter
-from PyQt5.QtChart import QChart, QChartView, QLineSeries
 import mBitConnection
+import gifAnimation
+
 
 class MainUi(QMainWindow):
     showPixels_evnt = pyqtSignal(list)
@@ -13,19 +14,21 @@ class MainUi(QMainWindow):
     clear_evnt = pyqtSignal()
     connect_evnt = pyqtSignal(str, str)
     disconnect_evnt = pyqtSignal()
+    startLoop= pyqtSignal()
+    changeGifState= pyqtSignal(bool)
 
     def __init__(self):
         super(MainUi, self).__init__()
+        self.acellData={"x":{"x":[], "y":[]},
+        "y":{"x":[], "y":[]},
+        "z":{"x":[], "y":[]}
+        }
+        self.xtrack=0
         self.threadpool = QThreadPool.globalInstance().setMaxThreadCount(2)
         dongles = adapter.list_adapters()
         dongle = adapter.Adapter(dongles[0])
-        self.adapterAddr = str(dongle.address)
-        self.ui = Ui_MainWindow()
-        self.ui.setupUi(self)
-        self.ui.hostMAC_txtBox.setText(self.adapterAddr)
-        self.make_connection_ScrollSpeed(self.ui.scrollSpeedSlider)
-        self.Buttonconnect(self.ui.connectButton, self.connectToMbit)
-        self.connectionThread=mBitConnection.Worker()
+        self.t = QThread(self, objectName='conThread')
+        self.connectionThread = mBitConnection.Worker(self, self.t)
         self.connectionThread.connected.connect(self.HandelConnectEvent)
         self.connectionThread.newstate.connect(self.mBitStatusUpdate)
         self.connectionThread.disconnected.connect(self.HandeldisconnectEvent)
@@ -34,14 +37,58 @@ class MainUi(QMainWindow):
         self.clear_evnt.connect(self.connectionThread.clearMatrix)
         self.connect_evnt.connect(self.connectionThread.connectToMbit)
         self.disconnect_evnt.connect(self.connectionThread.disconnectFromMbit)
+        self.t.started.connect(self.connectionThread.start)
+        self.t.start()
+
+
+        self.tGif = QThread(self, objectName='gifThread')
+        self.gifworker=gifAnimation.Worker(self.connectionThread, self, self.tGif)
+        self.tGif.started.connect(self.gifworker.run)
+        self.gifworker.moveToThread(self.tGif)
+        self.tGif.start()
+
+        self.adapterAddr = str(dongle.address)
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
+        self.ui.hostMAC_txtBox.setText(self.adapterAddr)
+        self.make_connection_ScrollSpeed(self.ui.scrollSpeedSlider)
+        self.Buttonconnect(self.ui.connectButton, self.connectToMbit)
+        self.ScrollingSpeed = 0
+        
         self.ui.matrixTab.setEnabled(False)
         self.ui.miscStateTab.setEnabled(False)
-        self.connectionThread.start()
+        self.Buttonconnect(self.ui.openGifButton, self.loadImage)
+        self.Buttonconnect(self.ui.gifStateButton, self.playgif)
         for row in self.ui.groupBox_MatrixState.findChildren(QWidget):
             for checkbox in row.findChildren(QCheckBox):
                 checkbox.clicked.connect(self.handelMatrixCheckbox)
         self.Buttonconnect(self.ui.matrixClear, self.MatrixClearButton)
         self.Buttonconnect(self.ui.pushButton_showText, self.SendTextHandler)
+
+    loadGifImage = pyqtSignal(str)
+
+    @pyqtSlot(bool)
+    def loadImage(self, state):
+        self.changeGifState.emit(False)
+        options = QFileDialog.Options()
+        fileName, _ = QFileDialog.getOpenFileName(self,"QFileDialog.getOpenFileName()", "","All Files (*);;Python Files (*.py)", options=options)
+        if fileName:
+            self.loadGifImage.emit(fileName)
+            self.ui.gifStateButton.setEnabled(True)
+
+
+    @pyqtSlot(bool)
+    def playgif(self, state):
+        if self.gifworker.playing:
+            self.changeGifState.emit(False)
+            self.ui.gifStateButton.setText("Play")
+        else:
+            self.changeGifState.emit(True)
+            self.ui.gifStateButton.setText("Stop")
+            
+
+
+        
 
     @pyqtSlot(bool)
     def SendTextHandler(self, state):
@@ -88,6 +135,10 @@ class MainUi(QMainWindow):
         self.ui.pushButton_mBitA.setDown(bool(updateDict["buttons"]["A"]))
         self.ui.pushButton_mBitB.setDown(bool(updateDict["buttons"]["B"]))
         self.ui.lcdNumber_temp.display(updateDict["temp"])
+        self.ui.lcdNumber_X.display(updateDict["accelerometer"][0])
+        self.ui.lcdNumber_Y.display(updateDict["accelerometer"][1])
+        self.ui.lcdNumber_Z.display(updateDict["accelerometer"][2])
+
         currentPixel=0
         currentrow=0
         for row in self.ui.groupBox_MatrixState.children():
@@ -120,10 +171,14 @@ class MainUi(QMainWindow):
 
     @pyqtSlot(bool)
     def connectToMbit(self, clicked):
-        if not self.connectionThread.mBitconnected:
-            self.connect_evnt.emit(self.adapterAddr, self.ui.mBitMac_TxtBox.text())
-        else:
+        print(self.connectionThread.mBitconnected)
+        if self.connectionThread.mBitconnected:
             self.disconnect_evnt.emit()
+            print("Disconnecting")
+        else:
+            print("connecting")
+            self.connect_evnt.emit(self.adapterAddr, self.ui.mBitMac_TxtBox.text())
+            
         
         
 
