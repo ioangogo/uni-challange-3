@@ -82,7 +82,9 @@ class MainUi(QMainWindow):
         if self.gifworker.playing:
             self.changeGifState.emit(False)
             self.ui.gifStateButton.setText("Play")
+            self.ui.openGifButton.setEnabled(True)
         else:
+            self.ui.openGifButton.setEnabled(False)
             self.changeGifState.emit(True)
             self.ui.gifStateButton.setText("Stop")
             
