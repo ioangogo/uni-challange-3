@@ -11,4 +11,4 @@ you have to find the address for the microbit in your distros bluetooth settings
 
 # State Diagram
 
-![](Gif Thread State Diagram.png)
+![](Gif%20Thread%20State%20Diagram.png)
